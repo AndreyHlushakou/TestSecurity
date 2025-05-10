@@ -6,7 +6,7 @@ import org.springframework.security.core.Authentication;
 
 public interface SecurityService {
     ResponseEntity<?> signUp(SignRequestDto signRequestDto);
-    ResponseEntity<?> allowSignInUser(String username, String token);
+    ResponseEntity<?> allowSignInUser(String username);
     ResponseEntity<?> signIn(SignRequestDto signRequestDto);
     ResponseEntity<?> logout(Authentication authentication, String token);
     ResponseEntity<?> refreshAccessToken(Authentication authentication, String token);

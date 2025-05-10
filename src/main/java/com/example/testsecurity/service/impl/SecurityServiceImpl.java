@@ -3,14 +3,13 @@ package com.example.testsecurity.service.impl;
 import com.example.testsecurity.dto.SignRequestDto;
 import com.example.testsecurity.dto.TokenResponseDto;
 import com.example.testsecurity.dto.UserDto;
-import com.example.testsecurity.entity.BlackListRefreshTokenEntity;
 import com.example.testsecurity.entity.RoleEntity;
 import com.example.testsecurity.entity.UserEntity;
 import com.example.testsecurity.repository.RoleEntityRepository;
 import com.example.testsecurity.repository.UserRepository;
 import com.example.testsecurity.service.SecurityService;
-import com.example.testsecurity.service.TaskDeleteRefreshTokenService;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,15 +18,17 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
-import static com.example.testsecurity.config.JwtUtils.*;
+import static com.example.testsecurity.config.JwtUtils.SecretEnum.ACCESS_SECRET;
+import static com.example.testsecurity.config.JwtUtils.SecretEnum.REFRESH_SECRET;
+import static com.example.testsecurity.config.JwtUtils.generateToken;
+import static com.example.testsecurity.config.JwtUtils.isTokenCorrectType;
 
 @Service
 @RequiredArgsConstructor
@@ -40,8 +41,6 @@ public class SecurityServiceImpl implements SecurityService {
     PasswordEncoder passwordEncoder;
     AuthenticationManager authenticationManager;
 
-    TaskDeleteRefreshTokenService taskDeleteRefreshTokenService;
-
     @Override //регистрация
     public ResponseEntity<?> signUp(SignRequestDto signRequestDto) {
         if (userRepository.existsByUsername(signRequestDto.getUsername())) {
@@ -53,71 +52,55 @@ public class SecurityServiceImpl implements SecurityService {
         String hashedPassword = passwordEncoder.encode(signRequestDto.getPassword());
         user.setPassword(hashedPassword);
         user.addRole(roleEntityRepository.getRoleEntity(RoleEntity.RoleEnum.ROLE_USER));
-        user.setAccountNonLocked(false);
-        user.setEnabled(false);
         userRepository.save(user);
 
         return ResponseEntity.ok("Success create user");
     }
 
-    public ResponseEntity<?> allowSignInUser(String username, String token) {
-        if (userRepository.existsByUsername(username)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Username is missing");
+    public ResponseEntity<?> allowSignInUser(String username) {
+        Optional<UserEntity> optionalUserEntity = userRepository.findByUsername(username);
+        if (optionalUserEntity.isPresent()) {
+            UserEntity user = optionalUserEntity.get();
+            user.setAccountNonLocked(true);
+            userRepository.save(user);
+            return ResponseEntity.ok("Success unlock " + username);
         }
 
-        if (taskDeleteRefreshTokenService.existsByRefreshToken(token)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Token in blacklist");
-        }
-
-        UserEntity user =userRepository.findByUsername(username).orElseThrow(() -> new UsernameNotFoundException(username));
-        user.setAccountNonLocked(true);
-        userRepository.save(user);
-        return ResponseEntity.ok("Success unlock " + username);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Username is incorrect");
     }
 
     @Override //индефикация+аунтеифкация=авторизация + проверка авторизован уже чи не
     public ResponseEntity<?> signIn(SignRequestDto signRequestDto) {
-        Authentication authUser = UsernamePasswordAuthenticationToken.unauthenticated(signRequestDto.getUsername(), signRequestDto.getPassword());
-        UserEntity user = (UserEntity) authUser.getPrincipal();
-        if (!user.isEnabled()) {
-            user.setEnabled(true);
-            userRepository.save(user);
 
-            Authentication authentication;
-            try {
-                authentication = authenticationManager.authenticate(authUser);
-            } catch (AuthenticationException e) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage() + "\nIncorrect username or password.");
-            }
+
+        Authentication authentication;
+        try {
+            Authentication authUser = UsernamePasswordAuthenticationToken
+                    .unauthenticated(signRequestDto.getUsername(), signRequestDto.getPassword());
+            authentication = authenticationManager.authenticate(authUser);
+        } catch (AuthenticationException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        }
+
+//        UserEntity user = (UserEntity) authentication.getPrincipal();
+//        if (!user.isEnabled()) {
+//            user.setEnabled(true);
+//            userRepository.save(user);
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            String accessToken = generateToken(authentication, SecretEnum.ACCESS_SECRET);
-            String refreshToken = generateToken(authentication, SecretEnum.REFRESH_SECRET);
+            String accessToken = generateToken(authentication, ACCESS_SECRET);
+            String refreshToken = generateToken(authentication, REFRESH_SECRET);
             return ResponseEntity.ok(new TokenResponseDto(accessToken, refreshToken));
-        }
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("The user is already authorized");
+//        }
+//        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("The user is already authorized");
     }
 
     @Override
     public ResponseEntity<?> logout(Authentication authentication, String token) {
-        if (taskDeleteRefreshTokenService.existsByRefreshToken(token)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Token in blacklist");
-        }
-
-        if (isTokenCorrectType(token, SecretEnum.REFRESH_SECRET)) {
-            UserEntity userEntity = (UserEntity) authentication.getPrincipal();
-            userEntity.setEnabled(false);
-            userRepository.save(userEntity);
-
-            if (!taskDeleteRefreshTokenService.existsByRefreshToken(token)) {
-                BlackListRefreshTokenEntity blackListRefreshTokenEntity = new BlackListRefreshTokenEntity();
-                blackListRefreshTokenEntity.setRefreshToken(token);
-                Date expirationDate = extractExpiration(token);
-                ZonedDateTime expiration = expirationDate.toInstant().atZone(ZoneId.systemDefault());
-                blackListRefreshTokenEntity.setExpiration(expiration);
-                taskDeleteRefreshTokenService.addToBlackListAndAndCreateTask(blackListRefreshTokenEntity);
-            }
-
+        if (isTokenCorrectType(token, REFRESH_SECRET)) {
+//            UserEntity userEntity = (UserEntity) authentication.getPrincipal();
+//            userEntity.setEnabled(false);
+//            userRepository.save(userEntity);
             return ResponseEntity.ok("User logout successfully");
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Incorrect token or type token");
@@ -125,12 +108,8 @@ public class SecurityServiceImpl implements SecurityService {
 
     @Override
     public ResponseEntity<?> refreshAccessToken(Authentication authentication, String token) {
-        if (taskDeleteRefreshTokenService.existsByRefreshToken(token)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Token in blacklist");
-        }
-
-        if (isTokenCorrectType(token, SecretEnum.REFRESH_SECRET)) {
-            String accessToken = generateToken(authentication, SecretEnum.ACCESS_SECRET);
+        if (isTokenCorrectType(token, REFRESH_SECRET)) {
+            String accessToken = generateToken(authentication, ACCESS_SECRET);
             return ResponseEntity.ok(new TokenResponseDto(accessToken, null));
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Incorrect token or type token");
@@ -138,13 +117,9 @@ public class SecurityServiceImpl implements SecurityService {
 
     @Override
     public ResponseEntity<?> refreshTokens(Authentication authentication, String token) {
-        if (taskDeleteRefreshTokenService.existsByRefreshToken(token)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Token in blacklist");
-        }
-
-        if (isTokenCorrectType(token, SecretEnum.REFRESH_SECRET)) {
-            String accessToken = generateToken(authentication, SecretEnum.ACCESS_SECRET);
-            String refreshToken = generateToken(authentication, SecretEnum.REFRESH_SECRET);
+        if (isTokenCorrectType(token, REFRESH_SECRET)) {
+            String accessToken = generateToken(authentication, ACCESS_SECRET);
+            String refreshToken = generateToken(authentication, REFRESH_SECRET);
             return ResponseEntity.ok(new TokenResponseDto(accessToken, refreshToken));
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Incorrect token or type token");
@@ -152,10 +127,6 @@ public class SecurityServiceImpl implements SecurityService {
 
     @Override
     public ResponseEntity<?> grantAdministratorRights(SignRequestDto signRequestDto, String token) {
-        if (taskDeleteRefreshTokenService.existsByRefreshToken(token)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Token in blacklist");
-        }
-
         String username = signRequestDto.getUsername();
         if (username != null) {
             UserEntity user = userRepository.findByUsername(username).orElse(null);
@@ -171,10 +142,6 @@ public class SecurityServiceImpl implements SecurityService {
 
     @Override
     public ResponseEntity<?> getListUserEntity(String token) {
-        if (taskDeleteRefreshTokenService.existsByRefreshToken(token)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Token in blacklist");
-        }
-
         List<UserEntity> userEntities = roleEntityRepository.getRoleEntity(RoleEntity.RoleEnum.ROLE_USER).getUserEntities().stream().toList();
         List<UserDto> userDtos = new ArrayList<>();
         for (UserEntity userEntity : userEntities) {

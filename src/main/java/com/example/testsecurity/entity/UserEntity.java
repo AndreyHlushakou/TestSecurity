@@ -30,11 +30,8 @@ public class UserEntity implements UserDetails {
     @Column(name = "password", nullable = false)
     String password;
 
-    @Column(name = "enabled")
-    Boolean enabled;
-
     @Column(name = "accountNonLocked")
-    Boolean accountNonLocked;
+    Boolean accountNonLocked = false;
 
     @ManyToMany(fetch = FetchType.EAGER) //, cascade = {CascadeType.PERSIST, CascadeType.MERGE}
     @JoinTable(name = "user_entity_role_entity",
@@ -57,12 +54,12 @@ public class UserEntity implements UserDetails {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         UserEntity that = (UserEntity) o;
-        return Objects.equals(id, that.id) && Objects.equals(username, that.username) && Objects.equals(password, that.password) && Objects.equals(enabled, that.enabled) && Objects.equals(accountNonLocked, that.accountNonLocked) && Objects.equals(authorities, that.authorities);
+        return Objects.equals(id, that.id) && Objects.equals(username, that.username) && Objects.equals(password, that.password) && Objects.equals(accountNonLocked, that.accountNonLocked) && Objects.equals(authorities, that.authorities);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, username, password, enabled, accountNonLocked);
+        return Objects.hash(id, username, password, accountNonLocked);
     }
 
     @Override
@@ -82,7 +79,7 @@ public class UserEntity implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return enabled;
+        return UserDetails.super.isEnabled();
     }
 
 }

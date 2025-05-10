@@ -37,7 +37,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             String hashedPassword = passwordEncoder.encode(admin);
             user.setPassword(hashedPassword);
             user.setAccountNonLocked(true);
-            user.setEnabled(false);
+//            user.setEnabled(false);
             user.addRole(roleEntityRepository.getRoleEntity(RoleEntity.RoleEnum.ROLE_USER));
             user.addRole(roleEntityRepository.getRoleEntity(RoleEntity.RoleEnum.ROLE_ADMIN));
             userRepository.save(user);

@@ -1,7 +1,7 @@
 package com.example.testsecurity.config;
 
+import com.example.testsecurity.exceprion.NotFoundCorrectSecretException;
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -31,7 +31,7 @@ import java.util.function.Function;
 
 @Slf4j
 @Component
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
+@NoArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class JwtUtils {
 
@@ -55,10 +55,6 @@ public class JwtUtils {
     @Value("${security.jwt.refresh-unit}")
     ChronoUnit refreshUnit;
 
-    static String DEFAULT_SECRET_KEY = "26947ebfd2f35047c2aa750bfc9ec4a0c5bd84b2076d29258e4100416560210c";
-    static long DEFAULT_TOKEN_LIFE_TIME = 1L;
-    static ChronoUnit DEFAULT_UNIT = ChronoUnit.DAYS;
-
     static Map<SecretEnum, TripletSecret> SECRETS_MAP = new HashMap<>(SecretEnum.values().length);
 
     public record TripletSecret(SecretKey secretKey,
@@ -68,11 +64,10 @@ public class JwtUtils {
     public enum SecretEnum {
         ACCESS_SECRET,
         REFRESH_SECRET,
-        DEFAULT_SECRET
     }
 
     @PostConstruct
-    public void initStatic() {
+    public void initSecretsMap() {
         TripletSecret tripletSecretAccess = new TripletSecret(getSigningKey(
                 accessSecretKey),
                 accessTokenLifeTime,
@@ -81,25 +76,21 @@ public class JwtUtils {
                 refreshSecretKey),
                 refreshTokenLifeTime,
                 refreshUnit);
-        TripletSecret tripletSecretDefault = new TripletSecret(
-                getSigningKey(DEFAULT_SECRET_KEY),
-                DEFAULT_TOKEN_LIFE_TIME,
-                DEFAULT_UNIT);
         SECRETS_MAP.put(SecretEnum.ACCESS_SECRET, tripletSecretAccess);
         SECRETS_MAP.put(SecretEnum.REFRESH_SECRET, tripletSecretRefresh);
-        SECRETS_MAP.put(SecretEnum.DEFAULT_SECRET, tripletSecretDefault);
     }
 
     private static SecretKey getSigningKey(String secretKey) throws DecodingException, WeakKeyException {
-        byte[] keyBytes = Decoders.BASE64URL.decode(secretKey);
+        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
     //generate
-    public static String generateToken(Authentication authentication, SecretEnum secretEnum) {
-        long lifeTime = SECRETS_MAP.get(secretEnum).lifeTime;
-        ChronoUnit chronoUnit = SECRETS_MAP.get(secretEnum).chronoUnit;
-        SecretKey secretKey = SECRETS_MAP.get(secretEnum).secretKey;
+    public static String generateToken(Authentication authentication, SecretEnum secretEnum) throws InvalidKeyException {
+        TripletSecret tripletSecret = SECRETS_MAP.get(secretEnum);
+        long lifeTime = tripletSecret.lifeTime;
+        ChronoUnit chronoUnit = tripletSecret.chronoUnit;
+        SecretKey secretKey = tripletSecret.secretKey;
 
         UserDetails userDetails= (UserDetails) authentication.getPrincipal();
 
@@ -108,61 +99,58 @@ public class JwtUtils {
         Date dateNow = Date.from(now.toInstant());
         Date dateTo = Date.from(instant);
 
-        JwtBuilder builder = Jwts.builder()
-                .header().type("JWT").and()
+        return Jwts.builder()
+                //header
+                .header()
+                .type("JWT")
+                //payload
+                .and()
                 .subject(userDetails.getUsername())
                 .issuedAt(dateNow)
                 .expiration(dateTo)
-                ;
-        try {
-            return builder.signWith(secretKey)
-                    .compact();
-        } catch (InvalidKeyException e) {
-            log.error("CREATE NEW ACCESS AND REFRESH SECRETS!!!\nIncorrect secretKey.\nWill be used: DEFAULT_SECRET_KEY.\n");
-            return builder.signWith(SECRETS_MAP.get(SecretEnum.DEFAULT_SECRET).secretKey)
-                    .compact();
-        }
+                //signature
+                .signWith(secretKey)
+                .compact();
     }
 
     //check
-    public static Map.Entry<SecretEnum, TripletSecret> getSecretEnum(String token) throws RuntimeException{
+    public static Map.Entry<SecretEnum, TripletSecret> getSecretEnum(String token) throws NotFoundCorrectSecretException {
         for (Map.Entry<SecretEnum, TripletSecret> secretEnumPairEntry : SECRETS_MAP.entrySet()) {
             SecretKey secretKey = secretEnumPairEntry.getValue().secretKey;
             try {
                 extractPayload(secretKey, token);
-            } catch (Exception ignored) {
+            } catch (JwtException | IllegalArgumentException ex) {
+                log.debug("JwtUtils: getSecretEnum. {}", ex.getMessage());
                 continue;
             }
             return secretEnumPairEntry;
         }
-        throw new RuntimeException("Not found correct secret");
+        throw new NotFoundCorrectSecretException();
     }
 
     public static boolean isTokenCorrectType(String token, SecretEnum secretEnum) {
         try {
             SecretEnum secretEnumByToken = getSecretEnum(token).getKey();
-            if (!(secretEnumByToken == secretEnum || secretEnumByToken == SecretEnum.DEFAULT_SECRET)) {
-                log.warn("Incorrect type token");
+            if (secretEnumByToken != secretEnum) {
+                log.debug("JwtUtils: Incorrect type token");
                 return false;
             }
             return true;
-        } catch (RuntimeException e) {
-            log.error("Incorrect token");
+        } catch (NotFoundCorrectSecretException e) {
+            log.debug("JwtUtils: isTokenCorrectType. {}", e.getMessage());
         }
         return false;
     }
 
     public static boolean isTokenValid(String token, UserDetails userDetails) {
-        try {
-            getSecretEnum(token);
-            String username = extractUserName(token);
+        String username = extractUserName(token);
+        Date date = extractExpiration(token);
+        if (username != null && date != null) {
             boolean bool1 = username.equals(userDetails.getUsername());
-            Date date = extractExpiration(token);
             boolean bool2 = !date.before(new Date());
             return bool1 && bool2;
-        } catch (RuntimeException ignored) {
-            return false;
         }
+        return false;
     }
 
     public static String extractUserName(String token) {
@@ -173,9 +161,14 @@ public class JwtUtils {
         return extractClaim(Claims::getExpiration, token);
     }
 
-    private static <T> T extractClaim(Function<Claims, T> claimsResolver, String token) throws JwtException, IllegalArgumentException {
-        SecretKey secretKey = getSecretEnum(token).getValue().secretKey;
-        return claimsResolver.apply(extractPayload(secretKey, token));
+    private static <T> T extractClaim(Function<Claims, T> claimsResolver, String token) {
+        try {
+            SecretKey secretKey = getSecretEnum(token).getValue().secretKey;
+            return claimsResolver.apply(extractPayload(secretKey, token));
+        } catch (NotFoundCorrectSecretException | JwtException | IllegalArgumentException ex) {
+            log.debug("JwtUtils: extractClaims. {}", ex.getMessage());
+        }
+        return null;
     }
 
     private static Claims extractPayload(SecretKey secretKey, String token) throws JwtException, IllegalArgumentException {
