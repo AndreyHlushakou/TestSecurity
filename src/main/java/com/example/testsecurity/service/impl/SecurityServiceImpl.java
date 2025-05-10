@@ -2,7 +2,6 @@ package com.example.testsecurity.service.impl;
 
 import com.example.testsecurity.dto.SignRequestDto;
 import com.example.testsecurity.dto.TokenResponseDto;
-import com.example.testsecurity.dto.UserDto;
 import com.example.testsecurity.entity.RoleEntity;
 import com.example.testsecurity.entity.UserEntity;
 import com.example.testsecurity.repository.RoleEntityRepository;
@@ -21,8 +20,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 
 import static com.example.testsecurity.config.JwtUtils.SecretEnum.ACCESS_SECRET;
@@ -57,18 +54,6 @@ public class SecurityServiceImpl implements SecurityService {
         return ResponseEntity.ok("Success create user");
     }
 
-    public ResponseEntity<?> allowSignInUser(String username) {
-        Optional<UserEntity> optionalUserEntity = userRepository.findByUsername(username);
-        if (optionalUserEntity.isPresent()) {
-            UserEntity user = optionalUserEntity.get();
-            user.setAccountNonLocked(true);
-            userRepository.save(user);
-            return ResponseEntity.ok("Success unlock " + username);
-        }
-
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Username is incorrect");
-    }
-
     @Override //индефикация+аунтеифкация=авторизация + проверка авторизован уже чи не
     public ResponseEntity<?> signIn(SignRequestDto signRequestDto) {
 
@@ -82,38 +67,50 @@ public class SecurityServiceImpl implements SecurityService {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
         }
 
-//        UserEntity user = (UserEntity) authentication.getPrincipal();
-//        if (!user.isEnabled()) {
-//            user.setEnabled(true);
-//            userRepository.save(user);
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            String accessToken = generateToken(authentication, ACCESS_SECRET);
-            String refreshToken = generateToken(authentication, REFRESH_SECRET);
-            return ResponseEntity.ok(new TokenResponseDto(accessToken, refreshToken));
-//        }
-//        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("The user is already authorized");
+        String accessToken = generateToken(authentication, ACCESS_SECRET);
+        String refreshToken = generateToken(authentication, REFRESH_SECRET);
+        return ResponseEntity.ok(new TokenResponseDto(accessToken, refreshToken));
     }
 
     @Override
     public ResponseEntity<?> logout(Authentication authentication, String token) {
         if (isTokenCorrectType(token, REFRESH_SECRET)) {
-//            UserEntity userEntity = (UserEntity) authentication.getPrincipal();
-//            userEntity.setEnabled(false);
-//            userRepository.save(userEntity);
             return ResponseEntity.ok("User logout successfully");
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Incorrect token or type token");
     }
 
-    @Override
-    public ResponseEntity<?> refreshAccessToken(Authentication authentication, String token) {
-        if (isTokenCorrectType(token, REFRESH_SECRET)) {
-            String accessToken = generateToken(authentication, ACCESS_SECRET);
-            return ResponseEntity.ok(new TokenResponseDto(accessToken, null));
-        }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Incorrect token or type token");
+    @Override //админ разблокировал юзера
+    public ResponseEntity<?> unlockUser(String username) {
+        return setLockingStateUser(username, true);
     }
+
+    @Override //админ разблокировал юзера
+    public ResponseEntity<?> lockUser(String username) {
+        return setLockingStateUser(username, false);
+    }
+
+    private ResponseEntity<?> setLockingStateUser(String username, boolean isNonLock) {
+        Optional<UserEntity> optionalUserEntity = userRepository.findByUsername(username);
+        if (optionalUserEntity.isPresent()) {
+            UserEntity user = optionalUserEntity.get();
+            user.setAccountNonLocked(isNonLock);
+            userRepository.save(user);
+            return ResponseEntity.ok("Success unlock " + username);
+        }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Username is incorrect");
+    }
+
+//    @Override
+//    public ResponseEntity<?> refreshAccessToken(Authentication authentication, String token) {
+//        if (isTokenCorrectType(token, REFRESH_SECRET)) {
+//            String accessToken = generateToken(authentication, ACCESS_SECRET);
+//            return ResponseEntity.ok(new TokenResponseDto(accessToken, null));
+//        }
+//        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Incorrect token or type token");
+//    }
 
     @Override
     public ResponseEntity<?> refreshTokens(Authentication authentication, String token) {
@@ -126,8 +123,7 @@ public class SecurityServiceImpl implements SecurityService {
     }
 
     @Override
-    public ResponseEntity<?> grantAdministratorRights(SignRequestDto signRequestDto, String token) {
-        String username = signRequestDto.getUsername();
+    public ResponseEntity<?> grantAdministratorRights(String username) {
         if (username != null) {
             UserEntity user = userRepository.findByUsername(username).orElse(null);
             if (user != null) {
@@ -138,21 +134,6 @@ public class SecurityServiceImpl implements SecurityService {
 
         } else return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Username missing in request");
 
-    }
-
-    @Override
-    public ResponseEntity<?> getListUserEntity(String token) {
-        List<UserEntity> userEntities = roleEntityRepository.getRoleEntity(RoleEntity.RoleEnum.ROLE_USER).getUserEntities().stream().toList();
-        List<UserDto> userDtos = new ArrayList<>();
-        for (UserEntity userEntity : userEntities) {
-            UserDto userDto = UserDto.builder()
-                    .username(userEntity.getUsername())
-                    .password(userEntity.getPassword())
-                    .roles(userEntity.getAuthorities().stream().map(RoleEntity::getAuthority).toList())
-                    .build();
-            userDtos.add(userDto);
-        }
-        return ResponseEntity.ok(userDtos);
     }
 
 }

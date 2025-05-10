@@ -6,11 +6,13 @@ import org.springframework.security.core.Authentication;
 
 public interface SecurityService {
     ResponseEntity<?> signUp(SignRequestDto signRequestDto);
-    ResponseEntity<?> allowSignInUser(String username);
     ResponseEntity<?> signIn(SignRequestDto signRequestDto);
     ResponseEntity<?> logout(Authentication authentication, String token);
-    ResponseEntity<?> refreshAccessToken(Authentication authentication, String token);
+
+    ResponseEntity<?> lockUser(String username);
+    ResponseEntity<?> unlockUser(String username);
+    ResponseEntity<?> grantAdministratorRights(String username);
+
+//    ResponseEntity<?> refreshAccessToken(Authentication authentication, String token);
     ResponseEntity<?> refreshTokens(Authentication authentication, String token);
-    ResponseEntity<?> grantAdministratorRights(SignRequestDto signRequestDto, String token);
-    ResponseEntity<?> getListUserEntity(String token);
 }

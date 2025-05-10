@@ -4,6 +4,7 @@ import com.example.testsecurity.service.CheckTokenService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,6 +21,11 @@ public class CheckTokenController {
     @GetMapping("/user")
     public String userAccess(Authentication authentication) {
         return checkTokenService.userLogged(authentication);
+    }
+
+    @GetMapping("/getListUserEntity")
+    public ResponseEntity<?> getListUserEntity() {
+        return checkTokenService.getListUserEntity();
     }
 
 }

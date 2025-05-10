@@ -12,6 +12,7 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -54,6 +55,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (isTokenCorrectType(token, REFRESH_SECRET)) {
                 if (taskDeleteRefreshTokenService.existsByRefreshToken(token)) {
                     log.warn("Custom Filter: Refresh token already in blacklist");
+                    response.sendError(HttpStatus.FORBIDDEN.value());
                     return;
                 } else {
                     BlackListRefreshTokenEntity blackListRefreshTokenEntity = new BlackListRefreshTokenEntity();

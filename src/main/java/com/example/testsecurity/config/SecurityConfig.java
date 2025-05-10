@@ -74,7 +74,8 @@ public class SecurityConfig {
             //  все кто уже авторизован - проверяем аунтефикацию
             request.requestMatchers(
                     "/secured/logout",
-                    "/secured/refreshAccessToken",
+
+//                    "/secured/refreshAccessToken",
                     "/secured/refreshTokens",
 
                     "/checkToken/user"
@@ -82,11 +83,11 @@ public class SecurityConfig {
 
             //  только для админа
             request.requestMatchers(
-                    "/secured/allowSignInUser",
+                    "/secured/lockUser",
+                    "/secured/unlockUser",
                     "/secured/grantAdministratorRights",
-                    "/secured/getListUserEntity",
 
-                    "/checkToken/allUsers"
+                    "/checkToken/getListUserEntity"
             )
 //                    .fullyAuthenticated();
                     .hasAuthority(RoleEntity.RoleEnum.ROLE_ADMIN.name());

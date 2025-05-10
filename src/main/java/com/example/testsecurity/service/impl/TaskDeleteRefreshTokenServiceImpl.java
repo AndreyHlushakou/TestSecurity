@@ -7,6 +7,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.ZonedDateTime;
@@ -17,6 +18,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+@Slf4j
 @Service
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class TaskDeleteRefreshTokenServiceImpl implements TaskDeleteRefreshTokenService {
@@ -33,9 +35,12 @@ public class TaskDeleteRefreshTokenServiceImpl implements TaskDeleteRefreshToken
 
     @PostConstruct
     public void initTasks() {
+        int i = 0;
         for (BlackListRefreshTokenEntity blackListRefreshTokenEntity : blackListRefreshTokenRepository.findAll()) {
             createTask(blackListRefreshTokenEntity);
+            i++;
         }
+        log.info("Tasks created n={}", i);
     }
 
     @Override
@@ -61,6 +66,7 @@ public class TaskDeleteRefreshTokenServiceImpl implements TaskDeleteRefreshToken
             public void run() {
                 UUID uuid = blackListRefreshTokenEntity.getId();
                 consumer.accept(uuid);
+                log.info("Deleted refresh token from blacklist");
             }
         };
 

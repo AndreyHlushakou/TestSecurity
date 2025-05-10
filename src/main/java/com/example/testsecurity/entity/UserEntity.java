@@ -17,6 +17,7 @@ import java.util.*;
 @Setter
 @NoArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@ToString
 public class UserEntity implements UserDetails {
 
     @Id
