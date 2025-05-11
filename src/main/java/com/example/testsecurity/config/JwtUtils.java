@@ -129,17 +129,14 @@ public class JwtUtils {
     }
 
     public static boolean isTokenCorrectType(String token, SecretEnum secretEnum) {
+        SecretKey secretKey = SECRETS_MAP.get(secretEnum).secretKey;
         try {
-            SecretEnum secretEnumByToken = getSecretEnum(token).getKey();
-            if (secretEnumByToken != secretEnum) {
-                log.debug("JwtUtils: Incorrect type token");
-                return false;
-            }
-            return true;
-        } catch (NotFoundCorrectSecretException e) {
-            log.debug("JwtUtils: isTokenCorrectType. {}", e.getMessage());
+            extractPayload(secretKey, token);
+        } catch (JwtException | IllegalArgumentException ex) {
+            log.debug("JwtUtils: Incorrect type token");
+            return false;
         }
-        return false;
+        return true;
     }
 
     public static boolean isTokenValid(String token, UserDetails userDetails) {
@@ -157,15 +154,34 @@ public class JwtUtils {
         return extractClaim(Claims::getSubject, token);
     }
 
+    public static String extractUserName(String token, SecretEnum secretEnum) {
+        SecretKey secretKey = SECRETS_MAP.get(secretEnum).secretKey;
+        return extractClaim(Claims::getSubject, token, secretKey);
+    }
+
     public static Date extractExpiration(String token) {
         return extractClaim(Claims::getExpiration, token);
+    }
+
+    public static Date extractExpiration(String token, SecretEnum secretEnum) {
+        SecretKey secretKey = SECRETS_MAP.get(secretEnum).secretKey;
+        return extractClaim(Claims::getExpiration, token, secretKey);
     }
 
     private static <T> T extractClaim(Function<Claims, T> claimsResolver, String token) {
         try {
             SecretKey secretKey = getSecretEnum(token).getValue().secretKey;
+            return extractClaim(claimsResolver, token, secretKey);
+        } catch (NotFoundCorrectSecretException ex) {
+            log.debug("JwtUtils: extractClaims. {}", ex.getMessage());
+        }
+        return null;
+    }
+
+    private static <T> T extractClaim(Function<Claims, T> claimsResolver, String token, SecretKey secretKey) {
+        try {
             return claimsResolver.apply(extractPayload(secretKey, token));
-        } catch (NotFoundCorrectSecretException | JwtException | IllegalArgumentException ex) {
+        } catch (JwtException | IllegalArgumentException ex) {
             log.debug("JwtUtils: extractClaims. {}", ex.getMessage());
         }
         return null;

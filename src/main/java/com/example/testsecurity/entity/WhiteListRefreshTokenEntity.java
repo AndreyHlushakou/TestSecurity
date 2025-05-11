@@ -13,18 +13,17 @@ import java.time.ZonedDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "black_list_refresh_token")
+@Table(name = "white_list_refresh_token")
 @DynamicInsert
 @DynamicUpdate
 @Getter
 @Setter
 @NoArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class BlackListRefreshTokenEntity {
+public class WhiteListRefreshTokenEntity {
 
     @Id
     @Column(name = "id")
-    @GeneratedValue(strategy = GenerationType.UUID)
     UUID id;
 
     @Column(name = "refresh_token")
@@ -32,5 +31,9 @@ public class BlackListRefreshTokenEntity {
 
     @Column(name = "expiration")
     ZonedDateTime expiration;
+
+    public WhiteListRefreshTokenEntity(UUID id) {
+        this.id = id;
+    }
 
 }

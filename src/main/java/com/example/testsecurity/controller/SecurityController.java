@@ -33,7 +33,15 @@ public class SecurityController {
     @GetMapping("/logout")
     public ResponseEntity<?> logout(@RequestHeader(AUTHORIZATION) String authHeader,
                                     Authentication authentication) {
-        return securityService.logout(authentication, authHeader);
+        String token = GET_BEARER_TOKEN.apply(authHeader);
+        return securityService.logout(token);
+    }
+
+    @GetMapping("/refreshTokens")
+    public ResponseEntity<?> refreshTokens(@RequestHeader(AUTHORIZATION) String authHeader,
+                                           Authentication authentication) {
+        String token = GET_BEARER_TOKEN.apply(authHeader);
+        return securityService.refreshTokens(authentication, token);
     }
 
 //    @Secured("ROLE_ADMIN")
@@ -44,29 +52,16 @@ public class SecurityController {
         return securityService.unlockUser(username);
     }
 
+//    @Secured("ROLE_ADMIN")
     @PostMapping("/lockUser")
     public ResponseEntity<?> lockUser(@RequestBody String username) {
         return securityService.lockUser(username);
     }
 
-    //    @Secured("ROLE_ADMIN")
+//    @Secured("ROLE_ADMIN")
     @PostMapping("/grantAdministratorRights")
     public ResponseEntity<?> grantAdministratorRights(@RequestBody String username) {
         return securityService.grantAdministratorRights(username);
-    }
-
-//    @GetMapping("/refreshAccessToken")
-//    public ResponseEntity<?> refreshAccessToken(@RequestHeader(AUTHORIZATION) String authHeader,
-//                                                Authentication authentication) {
-//        String token = GET_BEARER_TOKEN.apply(authHeader);
-//        return securityService.refreshAccessToken(authentication, token);
-//    }
-
-    @GetMapping("/refreshTokens")
-    public ResponseEntity<?> refreshTokens(@RequestHeader(AUTHORIZATION) String authHeader,
-                                           Authentication authentication) {
-        String token = GET_BEARER_TOKEN.apply(authHeader);
-        return securityService.refreshTokens(authentication, token);
     }
 
 }

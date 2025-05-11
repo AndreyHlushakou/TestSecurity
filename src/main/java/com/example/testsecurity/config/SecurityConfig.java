@@ -1,19 +1,17 @@
 package com.example.testsecurity.config;
 
-import com.example.testsecurity.config.filter.JwtAuthenticationFilter;
 import com.example.testsecurity.entity.RoleEntity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -26,6 +24,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
+@EnableGlobalMethodSecurity(securedEnabled = true)//чтобы работал @Secured
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -74,8 +73,6 @@ public class SecurityConfig {
             //  все кто уже авторизован - проверяем аунтефикацию
             request.requestMatchers(
                     "/secured/logout",
-
-//                    "/secured/refreshAccessToken",
                     "/secured/refreshTokens",
 
                     "/checkToken/user"

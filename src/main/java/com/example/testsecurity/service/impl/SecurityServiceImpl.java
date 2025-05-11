@@ -1,11 +1,14 @@
 package com.example.testsecurity.service.impl;
 
+import com.example.testsecurity.config.JwtUtils;
 import com.example.testsecurity.dto.SignRequestDto;
 import com.example.testsecurity.dto.TokenResponseDto;
 import com.example.testsecurity.entity.RoleEntity;
 import com.example.testsecurity.entity.UserEntity;
+import com.example.testsecurity.entity.WhiteListRefreshTokenEntity;
 import com.example.testsecurity.repository.RoleEntityRepository;
 import com.example.testsecurity.repository.UserRepository;
+import com.example.testsecurity.repository.WhiteListRefreshTokenRepository;
 import com.example.testsecurity.service.SecurityService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +22,11 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Date;
 import java.util.Optional;
 
 import static com.example.testsecurity.config.JwtUtils.SecretEnum.ACCESS_SECRET;
@@ -34,6 +41,8 @@ public class SecurityServiceImpl implements SecurityService {
 
     UserRepository userRepository;
     RoleEntityRepository roleEntityRepository;
+
+    WhiteListRefreshTokenRepository whiteListRefreshTokenRepository;
 
     PasswordEncoder passwordEncoder;
     AuthenticationManager authenticationManager;
@@ -56,31 +65,58 @@ public class SecurityServiceImpl implements SecurityService {
 
     @Override //индефикация+аунтеифкация=авторизация + проверка авторизован уже чи не
     public ResponseEntity<?> signIn(SignRequestDto signRequestDto) {
-
-
         Authentication authentication;
         try {
             Authentication authUser = UsernamePasswordAuthenticationToken
                     .unauthenticated(signRequestDto.getUsername(), signRequestDto.getPassword());
             authentication = authenticationManager.authenticate(authUser);
         } catch (AuthenticationException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("signIn:" + e.getMessage());
         }
-
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         String accessToken = generateToken(authentication, ACCESS_SECRET);
         String refreshToken = generateToken(authentication, REFRESH_SECRET);
+
+        saveRefreshTokenToWhiteList(authentication, refreshToken);
         return ResponseEntity.ok(new TokenResponseDto(accessToken, refreshToken));
     }
 
+    private void saveRefreshTokenToWhiteList(Authentication authentication, String refreshToken) {
+        UserEntity userEntity = (UserEntity) authentication.getPrincipal();
+
+        Date expirationDate = JwtUtils.extractExpiration(refreshToken, REFRESH_SECRET);
+        expirationDate = expirationDate == null ? new Date() : expirationDate;
+        ZonedDateTime expiration = expirationDate.toInstant().atZone(ZoneId.systemDefault());
+
+        WhiteListRefreshTokenEntity whiteListRefreshTokenEntity = whiteListRefreshTokenRepository.findById(userEntity.getId())
+                .orElse(new WhiteListRefreshTokenEntity(userEntity.getId()));
+        whiteListRefreshTokenEntity.setRefreshToken(refreshToken);
+        whiteListRefreshTokenEntity.setExpiration(expiration);
+        whiteListRefreshTokenRepository.save(whiteListRefreshTokenEntity);
+    }
+
     @Override
-    public ResponseEntity<?> logout(Authentication authentication, String token) {
+    public ResponseEntity<?> logout(String token) {
         if (isTokenCorrectType(token, REFRESH_SECRET)) {
+            whiteListRefreshTokenRepository.deleteByRefreshToken(token);
             return ResponseEntity.ok("User logout successfully");
         }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Incorrect token or type token");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("logout: Incorrect token or type token");
     }
+
+    @Override
+    public ResponseEntity<?> refreshTokens(Authentication authentication, String token) {
+        if (isTokenCorrectType(token, REFRESH_SECRET)) {
+            String accessToken = generateToken(authentication, ACCESS_SECRET);
+            String refreshToken = generateToken(authentication, REFRESH_SECRET);
+
+            saveRefreshTokenToWhiteList(authentication, refreshToken);
+            return ResponseEntity.ok(new TokenResponseDto(accessToken, refreshToken));
+        }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("refreshTokens: Incorrect token or type token");
+    }
+
 
     @Override //админ разблокировал юзера
     public ResponseEntity<?> unlockUser(String username) {
@@ -98,28 +134,9 @@ public class SecurityServiceImpl implements SecurityService {
             UserEntity user = optionalUserEntity.get();
             user.setAccountNonLocked(isNonLock);
             userRepository.save(user);
-            return ResponseEntity.ok("Success unlock " + username);
+            return ResponseEntity.ok("Success. Status nonLock=" + isNonLock + " for " + username);
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Username is incorrect");
-    }
-
-//    @Override
-//    public ResponseEntity<?> refreshAccessToken(Authentication authentication, String token) {
-//        if (isTokenCorrectType(token, REFRESH_SECRET)) {
-//            String accessToken = generateToken(authentication, ACCESS_SECRET);
-//            return ResponseEntity.ok(new TokenResponseDto(accessToken, null));
-//        }
-//        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Incorrect token or type token");
-//    }
-
-    @Override
-    public ResponseEntity<?> refreshTokens(Authentication authentication, String token) {
-        if (isTokenCorrectType(token, REFRESH_SECRET)) {
-            String accessToken = generateToken(authentication, ACCESS_SECRET);
-            String refreshToken = generateToken(authentication, REFRESH_SECRET);
-            return ResponseEntity.ok(new TokenResponseDto(accessToken, refreshToken));
-        }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Incorrect token or type token");
     }
 
     @Override
@@ -129,6 +146,8 @@ public class SecurityServiceImpl implements SecurityService {
             if (user != null) {
                 user.addRole(roleEntityRepository.getRoleEntity(RoleEntity.RoleEnum.ROLE_ADMIN));
                 userRepository.save(user);
+
+                whiteListRefreshTokenRepository.deleteById(user.getId());
                 return ResponseEntity.ok("Success updated!");
             } else return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("User is missing in DB");
 

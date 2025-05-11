@@ -23,6 +23,7 @@ public class CheckTokenController {
         return checkTokenService.userLogged(authentication);
     }
 
+//    @Secured("ROLE_ADMIN")
     @GetMapping("/getListUserEntity")
     public ResponseEntity<?> getListUserEntity() {
         return checkTokenService.getListUserEntity();
