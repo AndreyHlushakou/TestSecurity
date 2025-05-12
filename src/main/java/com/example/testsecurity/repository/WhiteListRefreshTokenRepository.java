@@ -10,7 +10,6 @@ import java.util.UUID;
 
 @Repository
 public interface WhiteListRefreshTokenRepository extends JpaRepository<WhiteListRefreshTokenEntity, UUID> {
-    boolean existsByRefreshToken(String refreshToken);
     @Transactional
     void deleteByRefreshToken(String refreshToken);
     Optional<WhiteListRefreshTokenEntity> findByRefreshToken(String refreshToken);
