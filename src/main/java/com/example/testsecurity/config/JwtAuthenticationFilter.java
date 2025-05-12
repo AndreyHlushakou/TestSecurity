@@ -53,8 +53,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (isTokenCorrectType(token, REFRESH_SECRET)) {
                 Optional<WhiteListRefreshTokenEntity> optionalWhiteListRefreshTokenEntity = whiteListRefreshTokenRepository.findByRefreshToken(token);
                 if (optionalWhiteListRefreshTokenEntity.isEmpty()) {
-                    log.warn("Custom Filter: Refresh token not in whitelist");
-                    response.sendError(HttpStatus.FORBIDDEN.value());
+                    log.debug("Custom Filter: Refresh token not in whitelist");
+                    constructResponse(response, "Refresh token not in whitelist");
                     return;
                 }
 
@@ -64,8 +64,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     whiteListRefreshTokenRepository.deleteByRefreshToken(token);
 
                     // TODO redirect to signIn
-                    log.warn("Custom Filter: Refresh token is old. Token deleted from DB");
-                    response.sendError(HttpStatus.FORBIDDEN.value());
+                    log.debug("Custom Filter: Refresh token is old. Token deleted from DB");
+                    constructResponse(response, "Refresh token is old");
                     return;
                 }
             }
@@ -73,7 +73,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String username = JwtUtils.extractUserName(token);
             if (username == null) {
                 log.debug("Custom Filter: Token expired or other");
-                response.sendError(HttpStatus.FORBIDDEN.value());
+                constructResponse(response, "Token expired or other");
                 return;
             }
 
@@ -81,21 +81,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 userDetails = userDetailsService.loadUserByUsername(username);
             } catch (UsernameNotFoundException exception) {
-                log.warn("Custom Filter: Invalid username in token");
-                response.sendError(HttpStatus.FORBIDDEN.value());
+                log.debug("Custom Filter: Invalid username in token");
+                constructResponse(response, "Invalid username in token");
                 return;
             }
 
             if (!userDetails.isAccountNonLocked()) {
-                log.warn("Custom Filter: User is locked");
-                response.sendError(HttpStatus.FORBIDDEN.value());
+                log.debug("Custom Filter: User is locked");
+                constructResponse(response, "User is locked");
                 return;
             }
 
             SecurityContext context = SecurityContextHolder.getContext();
             if (context.getAuthentication() != null) {
-                log.warn("Custom Filter: User has be authenticated");
-                response.sendError(HttpStatus.FORBIDDEN.value());
+                log.debug("Custom Filter: User has be authenticated");
+                constructResponse(response, "User has be authenticated");
                 return;
             }
 
@@ -107,8 +107,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 context.setAuthentication(authUser);
 
             } else {
-                log.warn("Custom Filter: Invalid token");
-                response.sendError(HttpStatus.FORBIDDEN.value());
+                log.debug("Custom Filter: Invalid token");
+                constructResponse(response, "Invalid token");
                 return;
             }
 
@@ -117,6 +117,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         filterChain.doFilter(request, response);
 
+    }
+
+    private static void constructResponse(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpStatus.FORBIDDEN.value());
+//        response.setContentType("application/json");
+//        response.getWriter().write("{\"error\": \"" + message +"\"}");
+        response.setContentType("text/plain;charset=UTF-8");
+        response.getWriter().write(message);
+        response.getWriter().flush();
     }
 
 }
