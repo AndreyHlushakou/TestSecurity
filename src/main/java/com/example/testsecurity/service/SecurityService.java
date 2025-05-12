@@ -13,4 +13,5 @@ public interface SecurityService {
     ResponseEntity<?> lockUser(String username);
     ResponseEntity<?> unlockUser(String username);
     ResponseEntity<?> grantAdministratorRights(String username);
+    ResponseEntity<?> revokeAdministratorRights(String username);
 }

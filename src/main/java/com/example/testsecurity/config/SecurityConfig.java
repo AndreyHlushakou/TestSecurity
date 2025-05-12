@@ -9,7 +9,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -24,7 +24,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@EnableGlobalMethodSecurity(securedEnabled = true)//чтобы работал @Secured
+@EnableMethodSecurity //чтобы работал @Secured
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -83,12 +83,12 @@ public class SecurityConfig {
                     "/secured/lockUser",
                     "/secured/unlockUser",
                     "/secured/grantAdministratorRights",
+                    "/secured/revokeAdministratorRights",
 
                     "/checkToken/getListUserEntity"
             )
-//                    .fullyAuthenticated();
-                    .hasAuthority(RoleEntity.RoleEnum.ROLE_ADMIN.name());
-//                    .hasRole(RoleEntity.RoleEnum.ROLE_ADMIN.name());
+                    .fullyAuthenticated();
+//                    .hasAuthority(RoleEntity.RoleEnum.ROLE_ADMIN.name());
 
             //  все остальные запросы запрещены
             request.anyRequest().denyAll();

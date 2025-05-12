@@ -12,11 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -44,7 +40,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     WhiteListRefreshTokenRepository whiteListRefreshTokenRepository;
     UserDetailsService userDetailsService;
-    AuthenticationManager authenticationManager;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -57,71 +52,66 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (isTokenCorrectType(token, REFRESH_SECRET)) {
                 Optional<WhiteListRefreshTokenEntity> optionalWhiteListRefreshTokenEntity = whiteListRefreshTokenRepository.findByRefreshToken(token);
-                if (optionalWhiteListRefreshTokenEntity.isPresent()) {
-                    WhiteListRefreshTokenEntity whiteListRefreshTokenEntity = optionalWhiteListRefreshTokenEntity.get();
-
-                    ZonedDateTime expiration = whiteListRefreshTokenEntity.getExpiration();
-                    ZonedDateTime now = ZonedDateTime.now();
-                    if (now.isAfter(expiration)) {
-                        whiteListRefreshTokenRepository.deleteByRefreshToken(token);
-                        log.warn("Custom Filter: Refresh token is old. Token deleted from DB");
-                        response.sendError(HttpStatus.FORBIDDEN.value());
-                        return;
-                    }
-
-                    //do nothing
-                } else {
+                if (optionalWhiteListRefreshTokenEntity.isEmpty()) {
                     log.warn("Custom Filter: Refresh token not in whitelist");
                     response.sendError(HttpStatus.FORBIDDEN.value());
                     return;
                 }
 
-            }
+                ZonedDateTime expiration = optionalWhiteListRefreshTokenEntity.get().getExpiration();
+                ZonedDateTime now = ZonedDateTime.now();
+                if (now.isAfter(expiration)) {
+                    whiteListRefreshTokenRepository.deleteByRefreshToken(token);
 
-            String username = JwtUtils.extractUserName(token);
-            if (username != null) {
-                try {
-                    UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-
-                    if (userDetails.isAccountNonLocked()) {
-                        SecurityContext context = SecurityContextHolder.getContext();
-                        if (context.getAuthentication() == null) {
-
-                            if (JwtUtils.isTokenValid(token, userDetails)) {
-
-                                UsernamePasswordAuthenticationToken authUser = UsernamePasswordAuthenticationToken
-                                        .authenticated(userDetails, null, userDetails.getAuthorities());
-                                authUser.setDetails(new WebAuthenticationDetails(request));
-                                context.setAuthentication(authUser);
-
-                            } else {
-                                log.warn("Custom Filter: Invalid token");
-                                response.sendError(HttpStatus.FORBIDDEN.value());
-                                return;
-                            }
-
-                        } else {
-                            log.warn("Custom Filter: User has be authenticated");
-                            response.sendError(HttpStatus.FORBIDDEN.value());
-                            return;
-                        }
-
-                    } else {
-                        log.warn("Custom Filter: User is locked");
-                        response.sendError(HttpStatus.FORBIDDEN.value());
-                        return;
-                    }
-
-                } catch (UsernameNotFoundException exception) {
-                    log.warn("Custom Filter: Invalid username in token");
+                    // TODO redirect to signIn
+                    log.warn("Custom Filter: Refresh token is old. Token deleted from DB");
                     response.sendError(HttpStatus.FORBIDDEN.value());
                     return;
                 }
-            } else {
+            }
+
+            String username = JwtUtils.extractUserName(token);
+            if (username == null) {
                 log.debug("Custom Filter: Token expired or other");
                 response.sendError(HttpStatus.FORBIDDEN.value());
                 return;
             }
+
+            UserDetails userDetails;
+            try {
+                userDetails = userDetailsService.loadUserByUsername(username);
+            } catch (UsernameNotFoundException exception) {
+                log.warn("Custom Filter: Invalid username in token");
+                response.sendError(HttpStatus.FORBIDDEN.value());
+                return;
+            }
+
+            if (!userDetails.isAccountNonLocked()) {
+                log.warn("Custom Filter: User is locked");
+                response.sendError(HttpStatus.FORBIDDEN.value());
+                return;
+            }
+
+            SecurityContext context = SecurityContextHolder.getContext();
+            if (context.getAuthentication() != null) {
+                log.warn("Custom Filter: User has be authenticated");
+                response.sendError(HttpStatus.FORBIDDEN.value());
+                return;
+            }
+
+            if (JwtUtils.isTokenValid(token, userDetails)) {
+
+                UsernamePasswordAuthenticationToken authUser = UsernamePasswordAuthenticationToken
+                        .authenticated(userDetails, null, userDetails.getAuthorities());
+                authUser.setDetails(new WebAuthenticationDetails(request));
+                context.setAuthentication(authUser);
+
+            } else {
+                log.warn("Custom Filter: Invalid token");
+                response.sendError(HttpStatus.FORBIDDEN.value());
+                return;
+            }
+
 
         } else log.debug("Custom Filter: Invalid authHeader");
 

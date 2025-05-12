@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
+import static com.example.testsecurity.utils.SecurityUtils.DEFAULT_ADMIN_NAME;
+
 @Service
 @DependsOn({"roleEntityService"})
 @RequiredArgsConstructor
@@ -29,12 +31,11 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @PostConstruct
     public void initAdmin() {
-        String admin = "admin";
-        Optional<UserEntity> optionalUserEntity = userRepository.findByUsername(admin);
+        Optional<UserEntity> optionalUserEntity = userRepository.findByUsername(DEFAULT_ADMIN_NAME);
         if (optionalUserEntity.isEmpty()) {
             UserEntity user = new UserEntity();
-            user.setUsername(admin);
-            String hashedPassword = passwordEncoder.encode(admin);
+            user.setUsername(DEFAULT_ADMIN_NAME);
+            String hashedPassword = passwordEncoder.encode(DEFAULT_ADMIN_NAME);
             user.setPassword(hashedPassword);
             user.setAccountNonLocked(true);
 //            user.setEnabled(false);

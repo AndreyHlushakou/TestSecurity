@@ -22,17 +22,20 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 
 import static com.example.testsecurity.config.JwtUtils.SecretEnum.ACCESS_SECRET;
 import static com.example.testsecurity.config.JwtUtils.SecretEnum.REFRESH_SECRET;
 import static com.example.testsecurity.config.JwtUtils.generateToken;
 import static com.example.testsecurity.config.JwtUtils.isTokenCorrectType;
+import static com.example.testsecurity.utils.SecurityUtils.DEFAULT_ADMIN_NAME;
 
 @Service
 @RequiredArgsConstructor
@@ -63,7 +66,7 @@ public class SecurityServiceImpl implements SecurityService {
         return ResponseEntity.ok("Success create user");
     }
 
-    @Override //индефикация+аунтеифкация=авторизация + проверка авторизован уже чи не
+    @Override //индефикация+аунтеифкация=авторизация
     public ResponseEntity<?> signIn(SignRequestDto signRequestDto) {
         Authentication authentication;
         try {
@@ -71,7 +74,7 @@ public class SecurityServiceImpl implements SecurityService {
                     .unauthenticated(signRequestDto.getUsername(), signRequestDto.getPassword());
             authentication = authenticationManager.authenticate(authUser);
         } catch (AuthenticationException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("signIn:" + e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Error sign in: " + e.getMessage());
         }
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
@@ -79,6 +82,7 @@ public class SecurityServiceImpl implements SecurityService {
         String refreshToken = generateToken(authentication, REFRESH_SECRET);
 
         saveRefreshTokenToWhiteList(authentication, refreshToken);
+
         return ResponseEntity.ok(new TokenResponseDto(accessToken, refreshToken));
     }
 
@@ -89,7 +93,8 @@ public class SecurityServiceImpl implements SecurityService {
         expirationDate = expirationDate == null ? new Date() : expirationDate;
         ZonedDateTime expiration = expirationDate.toInstant().atZone(ZoneId.systemDefault());
 
-        WhiteListRefreshTokenEntity whiteListRefreshTokenEntity = whiteListRefreshTokenRepository.findById(userEntity.getId())
+        WhiteListRefreshTokenEntity whiteListRefreshTokenEntity = whiteListRefreshTokenRepository
+                .findById(userEntity.getId())
                 .orElse(new WhiteListRefreshTokenEntity(userEntity.getId()));
         whiteListRefreshTokenEntity.setRefreshToken(refreshToken);
         whiteListRefreshTokenEntity.setExpiration(expiration);
@@ -102,7 +107,7 @@ public class SecurityServiceImpl implements SecurityService {
             whiteListRefreshTokenRepository.deleteByRefreshToken(token);
             return ResponseEntity.ok("User logout successfully");
         }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("logout: Incorrect token or type token");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Incorrect token or type token for logout");
     }
 
     @Override
@@ -114,7 +119,7 @@ public class SecurityServiceImpl implements SecurityService {
             saveRefreshTokenToWhiteList(authentication, refreshToken);
             return ResponseEntity.ok(new TokenResponseDto(accessToken, refreshToken));
         }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("refreshTokens: Incorrect token or type token");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Incorrect token or type token for refresh tokens");
     }
 
 
@@ -125,34 +130,57 @@ public class SecurityServiceImpl implements SecurityService {
 
     @Override //админ разблокировал юзера
     public ResponseEntity<?> lockUser(String username) {
+        if (username.equals(DEFAULT_ADMIN_NAME)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(DEFAULT_ADMIN_NAME + " can't be blocked");
+        }
         return setLockingStateUser(username, false);
     }
 
-    private ResponseEntity<?> setLockingStateUser(String username, boolean isNonLock) {
+    private ResponseEntity<?> setLockingStateUser(String username, boolean isNonLocked) {
         Optional<UserEntity> optionalUserEntity = userRepository.findByUsername(username);
-        if (optionalUserEntity.isPresent()) {
-            UserEntity user = optionalUserEntity.get();
-            user.setAccountNonLocked(isNonLock);
-            userRepository.save(user);
-            return ResponseEntity.ok("Success. Status nonLock=" + isNonLock + " for " + username);
+        if (optionalUserEntity.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Error " + (isNonLocked ? "unlock" : "lock") + " user. Username is incorrect");
         }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Username is incorrect");
+
+        UserEntity user = optionalUserEntity.get();
+        user.setAccountNonLocked(isNonLocked);
+        userRepository.save(user);
+
+        return ResponseEntity.ok("Success " + (isNonLocked ? "unlock" : "lock") + " user " + username);
     }
 
     @Override
     public ResponseEntity<?> grantAdministratorRights(String username) {
-        if (username != null) {
-            UserEntity user = userRepository.findByUsername(username).orElse(null);
-            if (user != null) {
-                user.addRole(roleEntityRepository.getRoleEntity(RoleEntity.RoleEnum.ROLE_ADMIN));
-                userRepository.save(user);
-
-                whiteListRefreshTokenRepository.deleteById(user.getId());
-                return ResponseEntity.ok("Success updated!");
-            } else return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("User is missing in DB");
-
-        } else return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Username missing in request");
-
+        return administratorRights(username, UserEntity::addRole);
     }
+
+    @Override
+    public ResponseEntity<?> revokeAdministratorRights(String username) {
+        if (username.equals(DEFAULT_ADMIN_NAME)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Administrator rights cannot be revoked from an " + DEFAULT_ADMIN_NAME);
+        }
+        return administratorRights(username, UserEntity::removeRole);
+    }
+
+    private ResponseEntity<?> administratorRights(String username, BiConsumer<UserEntity, RoleEntity> biConsumer) {
+        if (username == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Username is missing from the request");
+        }
+        UserEntity user = userRepository.findByUsername(username).orElse(null);
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Username is not in the DB");
+        }
+
+        RoleEntity roleEntity = roleEntityRepository.getRoleEntity(RoleEntity.RoleEnum.ROLE_ADMIN);
+        biConsumer.accept(user, roleEntity);
+        userRepository.save(user);
+
+        whiteListRefreshTokenRepository.deleteById(user.getId());
+
+        List<String> listAuthority = user.getAuthorities().stream().map(RoleEntity::getAuthority).toList();
+        return ResponseEntity.ok("Success. " + user.getUsername() + " has been " + listAuthority);
+    }
+
+
 
 }
