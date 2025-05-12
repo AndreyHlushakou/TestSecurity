@@ -30,7 +30,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     RoleEntityRepository roleEntityRepository;
 
     @PostConstruct
-    public void initAdmin() {
+    private void initAdmin() {
         Optional<UserEntity> optionalUserEntity = userRepository.findByUsername(DEFAULT_ADMIN_NAME);
         if (optionalUserEntity.isEmpty()) {
             UserEntity user = new UserEntity();

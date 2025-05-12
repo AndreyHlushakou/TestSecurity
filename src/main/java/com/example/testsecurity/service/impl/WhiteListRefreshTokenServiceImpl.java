@@ -19,7 +19,7 @@ public class WhiteListRefreshTokenServiceImpl {
     WhiteListRefreshTokenRepository whiteListRefreshTokenRepository;
 
     @PostConstruct
-    public void initDeleteOldToken() {
+    private void initDeleteOldToken() {
         List<WhiteListRefreshTokenEntity> entities = whiteListRefreshTokenRepository.findAll();
         for (WhiteListRefreshTokenEntity entity : entities) {
 

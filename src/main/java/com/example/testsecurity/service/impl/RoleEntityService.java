@@ -16,7 +16,7 @@ public class RoleEntityService {
     RoleEntityRepository roleEntityRepository;
 
     @PostConstruct
-    public void initRoleEntity() {
+    private void initRoleEntity() {
         for (RoleEntity.RoleEnum value : RoleEntity.RoleEnum.values()) {
             if (!roleEntityRepository.existsById(value)) {
                 RoleEntity roleEntity = new RoleEntity();

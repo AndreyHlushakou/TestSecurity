@@ -11,7 +11,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import static com.example.testsecurity.utils.SecurityUtils.GET_BEARER_TOKEN;
-import static com.example.testsecurity.utils.SecurityUtils.ROLE_ADMIN;
+import static com.example.testsecurity.utils.SecurityUtils.ROLE_ADMIN_str;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 
 @RestController
@@ -45,25 +45,25 @@ public class SecurityController {
         return securityService.refreshTokens(authentication, token);
     }
 
-    @PreAuthorize("hasAnyAuthority('" + ROLE_ADMIN + "')")
+    @PreAuthorize("hasAnyAuthority('" + ROLE_ADMIN_str + "')")
     @PatchMapping("/unlockUser")
     public ResponseEntity<?> unlockUser(@RequestBody String username) {
         return securityService.unlockUser(username);
     }
 
-    @PreAuthorize("hasAnyAuthority('" + ROLE_ADMIN + "')")
+    @PreAuthorize("hasAnyAuthority('" + ROLE_ADMIN_str + "')")
     @PatchMapping("/lockUser")
     public ResponseEntity<?> lockUser(@RequestBody String username) {
         return securityService.lockUser(username);
     }
 
-    @PreAuthorize("hasAnyAuthority('" + ROLE_ADMIN + "')")
+    @PreAuthorize("hasAnyAuthority('" + ROLE_ADMIN_str + "')")
     @PatchMapping("/grantAdministratorRights")
     public ResponseEntity<?> grantAdministratorRights(@RequestBody String username) {
         return securityService.grantAdministratorRights(username);
     }
 
-    @PreAuthorize("hasAnyAuthority('" + ROLE_ADMIN + "')")
+    @PreAuthorize("hasAnyAuthority('" + ROLE_ADMIN_str + "')")
     @PatchMapping("/revokeAdministratorRights")
     public ResponseEntity<?> revokeAdministratorRights(@RequestBody String username) {
         return securityService.revokeAdministratorRights(username);

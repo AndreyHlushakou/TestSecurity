@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.example.testsecurity.utils.SecurityUtils.ROLE_ADMIN;
+import static com.example.testsecurity.utils.SecurityUtils.ROLE_ADMIN_str;
 
 @RestController
 @RequestMapping("/checkToken")
@@ -41,7 +41,7 @@ public class TestTokenController {
         return ResponseEntity.ok(userDto);
     }
 
-    @PreAuthorize("hasAnyAuthority('" + ROLE_ADMIN + "')")
+    @PreAuthorize("hasAnyAuthority('" + ROLE_ADMIN_str + "')")
     @GetMapping("/getListUserEntity")
     public ResponseEntity<?> getListUserEntity() {
         List<UserEntity> userEntities =

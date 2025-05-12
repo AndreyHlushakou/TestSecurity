@@ -1,6 +1,5 @@
 package com.example.testsecurity.config;
 
-import com.example.testsecurity.entity.RoleEntity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,7 +23,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity //чтобы работал @Secured
+@EnableMethodSecurity //чтобы работал @PreAuthorize
 @RequiredArgsConstructor
 public class SecurityConfig {
 

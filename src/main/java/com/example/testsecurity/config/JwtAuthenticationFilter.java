@@ -27,7 +27,6 @@ import java.time.ZonedDateTime;
 import java.util.Optional;
 
 import static com.example.testsecurity.config.JwtUtils.SecretEnum.REFRESH_SECRET;
-import static com.example.testsecurity.config.JwtUtils.isTokenCorrectType;
 import static com.example.testsecurity.utils.SecurityUtils.BEARER_PREFIX;
 import static com.example.testsecurity.utils.SecurityUtils.GET_BEARER_TOKEN;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
@@ -50,7 +49,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (authHeader != null && authHeader.startsWith(BEARER_PREFIX)) {
             String token = GET_BEARER_TOKEN.apply(authHeader);
 
-            if (isTokenCorrectType(token, REFRESH_SECRET)) {
+            if (JwtUtils.isTokenCorrectType(token, REFRESH_SECRET)) {
                 Optional<WhiteListRefreshTokenEntity> optionalWhiteListRefreshTokenEntity = whiteListRefreshTokenRepository.findByRefreshToken(token);
                 if (optionalWhiteListRefreshTokenEntity.isEmpty()) {
                     log.debug("Custom Filter: Refresh token not in whitelist");

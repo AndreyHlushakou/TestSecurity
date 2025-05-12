@@ -1,13 +1,19 @@
 package com.example.testsecurity.entity;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.DynamicInsert;
 import org.hibernate.annotations.DynamicUpdate;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 
 @Entity
 @Table(name = "user_entity")
@@ -30,7 +36,7 @@ public class UserEntity implements UserDetails {
     @Column(name = "password", nullable = false)
     String password;
 
-    @Column(name = "accountNonLocked")
+    @Column(name = "account_non_locked")
     Boolean accountNonLocked = false;
 
     @ManyToMany(fetch = FetchType.EAGER) //, cascade = {CascadeType.PERSIST, CascadeType.MERGE}

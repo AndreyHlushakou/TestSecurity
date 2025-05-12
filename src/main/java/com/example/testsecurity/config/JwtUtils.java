@@ -13,7 +13,6 @@ import jakarta.annotation.PostConstruct;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
@@ -32,30 +31,24 @@ import java.util.function.Function;
 @Slf4j
 @Component
 @NoArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class JwtUtils {
 
-    @NonFinal
     @Value("${security.jwt.access-secret-key}")
     String accessSecretKey;
-    @NonFinal
     @Value("${security.jwt.access-token-lifetime}")
     long accessTokenLifeTime;
-    @NonFinal
     @Value("${security.jwt.access-unit}")
     ChronoUnit accessUnit;
 
-    @NonFinal
     @Value("${security.jwt.refresh-secret-key}")
     String refreshSecretKey;
-    @NonFinal
     @Value("${security.jwt.refresh-token-lifetime}")
     long refreshTokenLifeTime;
-    @NonFinal
     @Value("${security.jwt.refresh-unit}")
     ChronoUnit refreshUnit;
 
-    static Map<SecretEnum, TripletSecret> SECRETS_MAP = new HashMap<>(SecretEnum.values().length);
+    private static final Map<SecretEnum, TripletSecret> SECRETS_MAP = new HashMap<>(SecretEnum.values().length);
 
     public record TripletSecret(SecretKey secretKey,
                                 Long lifeTime,
@@ -67,7 +60,7 @@ public class JwtUtils {
     }
 
     @PostConstruct
-    public void initSecretsMap() {
+    private void initSecretsMap() {
         TripletSecret tripletSecretAccess = new TripletSecret(getSigningKey(
                 accessSecretKey),
                 accessTokenLifeTime,
@@ -173,7 +166,7 @@ public class JwtUtils {
             SecretKey secretKey = getSecretEnum(token).getValue().secretKey;
             return extractClaim(claimsResolver, token, secretKey);
         } catch (NotFoundCorrectSecretException ex) {
-            log.debug("JwtUtils: extractClaims. {}", ex.getMessage());
+            log.debug("JwtUtils: extractClaim. {}", ex.getMessage());
         }
         return null;
     }
@@ -182,7 +175,7 @@ public class JwtUtils {
         try {
             return claimsResolver.apply(extractPayload(secretKey, token));
         } catch (JwtException | IllegalArgumentException ex) {
-            log.debug("JwtUtils: extractClaims. {}", ex.getMessage());
+            log.debug("JwtUtils: extractClaim. {}", ex.getMessage());
         }
         return null;
     }
